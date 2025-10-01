@@ -21,7 +21,7 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
 
 // Download endpoint
 app.post('/download', async (req, res) => {
-    const { url } = req.body;
+    const { url, allowPlaylist } = req.body;
 
     if (!url) {
         return res.status(400).json({ success: false, error: 'URL is required' });
@@ -29,11 +29,16 @@ app.post('/download', async (req, res) => {
 
     console.log(`Download request received for: ${url}`);
 
-    // Check if it's a playlist
-    const isPlaylist = url.includes('playlist?list=') || url.includes('&list=');
+    // Check if it's a playlist by URL
+    const isPlaylistUrl = url.includes('playlist?list=') || url.includes('&list=');
+
+    // Respect client preference for playlist handling
+    // If allowPlaylist is true, download full playlist when URL is a playlist
+    // If false, force single video even for playlist URLs
+    const playlistFlag = allowPlaylist ? '--yes-playlist' : '--no-playlist';
 
     // yt-dlp command for 320kbps MP3
-    const command = `yt-dlp -x --audio-format mp3 --audio-quality 320K -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
+    const command = `yt-dlp ${playlistFlag} -x --audio-format mp3 --audio-quality 320K -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
 
     console.log(`Executing: ${command}`);
 
@@ -65,16 +70,77 @@ app.post('/download', async (req, res) => {
                 const statB = fs.statSync(path.join(DOWNLOAD_DIR, b));
                 return statB.mtime - statA.mtime;
             })
-            .slice(0, isPlaylist ? 50 : 1);
+            .slice(0, isPlaylistUrl && allowPlaylist ? 50 : 1);
 
         res.json({ 
             success: true, 
-            message: isPlaylist 
+            message: (isPlaylistUrl && allowPlaylist)
                 ? `Successfully downloaded ${files.length} MP3 files to ${DOWNLOAD_DIR}`
                 : `Successfully downloaded MP3 to ${DOWNLOAD_DIR}`,
             files: files,
             downloadDir: DOWNLOAD_DIR
         });
+    });
+});
+
+// Preview endpoint to fetch metadata for video or playlist
+app.post('/preview', async (req, res) => {
+    const { url, allowPlaylist } = req.body;
+
+    if (!url) {
+        return res.status(400).json({ success: false, error: 'URL is required' });
+    }
+
+    const playlistFlag = allowPlaylist ? '--yes-playlist' : '--no-playlist';
+    // -J outputs JSON metadata without downloading
+    const command = `yt-dlp ${playlistFlag} -J "${url}"`;
+
+    exec(command, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Preview error: ${error.message}`);
+            return res.status(500).json({ success: false, error: `Preview failed: ${error.message}` });
+        }
+
+        try {
+            const info = JSON.parse(stdout);
+
+            // If playlist, normalize summary with entries
+            if (info && (info._type === 'playlist' || Array.isArray(info.entries))) {
+                const entries = (info.entries || []).map((e, idx) => ({
+                    index: (e.playlist_index || idx + 1),
+                    id: e.id,
+                    title: e.title,
+                    duration: e.duration,
+                    uploader: e.uploader || e.channel,
+                    thumbnail: e.thumbnail
+                }));
+
+                return res.json({
+                    success: true,
+                    type: 'playlist',
+                    title: info.title,
+                    uploader: info.uploader || info.channel,
+                    entryCount: entries.length,
+                    entriesPreview: entries.slice(0, 15),
+                });
+            }
+
+            // Single video
+            const data = {
+                success: true,
+                type: 'video',
+                id: info.id,
+                title: info.title,
+                uploader: info.uploader || info.channel,
+                duration: info.duration,
+                thumbnail: info.thumbnail
+            };
+
+            return res.json(data);
+        } catch (parseError) {
+            console.error('Failed to parse yt-dlp JSON:', parseError);
+            return res.status(500).json({ success: false, error: 'Failed to parse preview info' });
+        }
     });
 });
 

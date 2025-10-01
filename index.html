@@ -205,43 +205,41 @@
             <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=... or playlist link">
         </div>
 
+        <div class="input-group" style="display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" id="allowPlaylist" checked>
+            <label for="allowPlaylist" style="margin:0;">Download entire playlist when URL is a playlist</label>
+        </div>
+
         <div class="config-section">
             <label for="serverUrl">Backend Server URL</label>
             <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
         </div>
 
-        <button class="btn" id="downloadBtn">Download MP3 (320 kbps)</button>
+        <div class="input-group" style="display:flex; gap:10px;">
+            <button class="btn" id="previewBtn" style="flex:1; background:#ffffff; color:#667eea; border:2px solid #667eea;">Preview</button>
+            <button class="btn" id="downloadBtn" style="flex:1;">Download MP3 (320 kbps)</button>
+        </div>
 
         <div class="status" id="status"></div>
         <div class="progress-container" id="progressContainer"></div>
 
-        <div class="setup-instructions">
-            <h3>🔧 Setup Instructions</h3>
-            <ol>
-                <li><strong>Install Node.js:</strong> Download from <code>nodejs.org</code></li>
-                <li><strong>Install yt-dlp:</strong>
-                    <br>Windows: Download from <code>github.com/yt-dlp/yt-dlp/releases</code>
-                    <br>Mac/Linux: <code>pip install yt-dlp</code>
-                </li>
-                <li><strong>Install FFmpeg:</strong>
-                    <br>Windows: Download from <code>ffmpeg.org</code> and add to PATH
-                    <br>Mac: <code>brew install ffmpeg</code>
-                    <br>Linux: <code>sudo apt install ffmpeg</code>
-                </li>
-                <li><strong>Create server.js</strong> file (see code below)</li>
-                <li><strong>Install dependencies:</strong> <code>npm install express cors child_process</code></li>
-                <li><strong>Run server:</strong> <code>node server.js</code></li>
-                <li><strong>Open this HTML file</strong> in your browser</li>
-            </ol>
+        <div class="input-group" id="previewSection" style="display:none; margin-top:10px;">
+            <div class="progress-item" id="previewContent"></div>
         </div>
+        
+        <div class="setup-instructions">
+        
     </div>
-
     <script>
         const urlInput = document.getElementById('url');
         const serverUrlInput = document.getElementById('serverUrl');
         const downloadBtn = document.getElementById('downloadBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const allowPlaylistCheckbox = document.getElementById('allowPlaylist');
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progressContainer');
+        const previewSection = document.getElementById('previewSection');
+        const previewContent = document.getElementById('previewContent');
 
         function showStatus(message, type) {
             statusDiv.textContent = message;
@@ -253,13 +251,30 @@
             statusDiv.style.display = 'none';
         }
 
-        function isPlaylist(url) {
-            return url.includes('playlist?list=') || url.includes('&list=');
+        function renderPreview(data) {
+            previewSection.style.display = 'block';
+            if (data.type === 'playlist') {
+                const listItems = (data.entriesPreview || []).map(e => `
+                    <li>
+                        <strong>#${e.index}</strong> - ${e.title} ${e.duration ? `(${Math.round(e.duration/60)} min)` : ''}
+                    </li>
+                `).join('');
+                previewContent.innerHTML = `
+                    <div class="progress-title">Playlist: ${data.title} (${data.entryCount} items)</div>
+                    <ul style="margin-left:18px; line-height:1.6;">${listItems || '<li>No items</li>'}</ul>
+                `;
+            } else {
+                previewContent.innerHTML = `
+                    <div class="progress-title">Video: ${data.title}</div>
+                    <div style="color:#666;">${data.uploader || ''} ${data.duration ? `• ${Math.round(data.duration/60)} min` : ''}</div>
+                `;
+            }
         }
 
         async function downloadMP3() {
             const url = urlInput.value.trim();
             const serverUrl = serverUrlInput.value.trim();
+            const allowPlaylist = !!allowPlaylistCheckbox.checked;
 
             if (!url) {
                 showStatus('Please enter a valid YouTube URL', 'error');
@@ -269,6 +284,7 @@
             downloadBtn.disabled = true;
             hideStatus();
             progressContainer.style.display = 'none';
+            previewSection.style.display = 'none';
             progressContainer.innerHTML = '';
 
             try {
@@ -279,7 +295,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ url, allowPlaylist })
                 });
 
                 if (!response.ok) {
@@ -315,7 +331,40 @@
             }
         }
 
+        async function previewInfo() {
+            const url = urlInput.value.trim();
+            const serverUrl = serverUrlInput.value.trim();
+            const allowPlaylist = !!allowPlaylistCheckbox.checked;
+
+            if (!url) {
+                showStatus('Please enter a valid YouTube URL', 'error');
+                return;
+            }
+
+            previewBtn.disabled = true;
+            showStatus('Fetching preview...', 'info');
+
+            try {
+                const response = await fetch(`${serverUrl}/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, allowPlaylist })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to fetch preview');
+                }
+                hideStatus();
+                renderPreview(data);
+            } catch (err) {
+                showStatus(`Preview error: ${err.message}`, 'error');
+            } finally {
+                previewBtn.disabled = false;
+            }
+        }
+
         downloadBtn.addEventListener('click', downloadMP3);
+        document.getElementById('previewBtn').addEventListener('click', previewInfo);
         urlInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') downloadMP3();
         });
