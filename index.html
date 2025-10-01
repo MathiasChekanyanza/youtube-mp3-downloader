@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube MP3 Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+            border-left: 4px solid #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-item {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .progress-title {
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .setup-instructions {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .setup-instructions h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .setup-instructions ol {
+            color: #856404;
+            padding-left: 20px;
+        }
+
+        .setup-instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .setup-instructions code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #c62828;
+        }
+
+        .config-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .config-section label {
+            font-size: 14px;
+        }
+
+        .config-section input[type="text"] {
+            padding: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 YouTube MP3 Downloader</h1>
+        <p class="subtitle">Download high-quality 320kbps MP3 files from YouTube videos and playlists</p>
+
+        <div class="input-group">
+            <label for="url">YouTube URL (Video or Playlist)</label>
+            <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=... or playlist link">
+        </div>
+
+        <div class="config-section">
+            <label for="serverUrl">Backend Server URL</label>
+            <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
+        </div>
+
+        <button class="btn" id="downloadBtn">Download MP3 (320 kbps)</button>
+
+        <div class="status" id="status"></div>
+        <div class="progress-container" id="progressContainer"></div>
+
+        <div class="setup-instructions">
+            <h3>🔧 Setup Instructions</h3>
+            <ol>
+                <li><strong>Install Node.js:</strong> Download from <code>nodejs.org</code></li>
+                <li><strong>Install yt-dlp:</strong>
+                    <br>Windows: Download from <code>github.com/yt-dlp/yt-dlp/releases</code>
+                    <br>Mac/Linux: <code>pip install yt-dlp</code>
+                </li>
+                <li><strong>Install FFmpeg:</strong>
+                    <br>Windows: Download from <code>ffmpeg.org</code> and add to PATH
+                    <br>Mac: <code>brew install ffmpeg</code>
+                    <br>Linux: <code>sudo apt install ffmpeg</code>
+                </li>
+                <li><strong>Create server.js</strong> file (see code below)</li>
+                <li><strong>Install dependencies:</strong> <code>npm install express cors child_process</code></li>
+                <li><strong>Run server:</strong> <code>node server.js</code></li>
+                <li><strong>Open this HTML file</strong> in your browser</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('url');
+        const serverUrlInput = document.getElementById('serverUrl');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusDiv = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        function hideStatus() {
+            statusDiv.style.display = 'none';
+        }
+
+        function isPlaylist(url) {
+            return url.includes('playlist?list=') || url.includes('&list=');
+        }
+
+        async function downloadMP3() {
+            const url = urlInput.value.trim();
+            const serverUrl = serverUrlInput.value.trim();
+
+            if (!url) {
+                showStatus('Please enter a valid YouTube URL', 'error');
+                return;
+            }
+
+            downloadBtn.disabled = true;
+            hideStatus();
+            progressContainer.style.display = 'none';
+            progressContainer.innerHTML = '';
+
+            try {
+                showStatus('Connecting to server...', 'info');
+
+                const response = await fetch(`${serverUrl}/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(data.message || 'Download completed successfully!', 'success');
+                    
+                    if (data.files && data.files.length > 0) {
+                        progressContainer.style.display = 'block';
+                        data.files.forEach(file => {
+                            const item = document.createElement('div');
+                            item.className = 'progress-item';
+                            item.innerHTML = `
+                                <div class="progress-title">✓ ${file}</div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 100%"></div>
+                                </div>
+                            `;
+                            progressContainer.appendChild(item);
+                        });
+                    }
+                } else {
+                    showStatus(data.error || 'Download failed', 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}. Make sure the server is running!`, 'error');
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        }
+
+        downloadBtn.addEventListener('click', downloadMP3);
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') downloadMP3();
+        });
+    </script>
+</body>
+</html>
