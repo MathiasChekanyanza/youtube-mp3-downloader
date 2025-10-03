@@ -205,9 +205,21 @@
             <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=... or playlist link">
         </div>
 
+        <div class="input-group" id="previewSection" style="display:none; margin-top:10px;">
+            <div class="progress-item" id="previewContent"></div>
+        </div>
+
         <div class="input-group" style="display:flex; align-items:center; gap:10px;">
             <input type="checkbox" id="allowPlaylist" checked>
             <label for="allowPlaylist" style="margin:0;">Download entire playlist when URL is a playlist</label>
+        </div>
+
+        <div class="input-group">
+            <label for="bitrate">Audio Quality</label>
+            <select id="bitrate" style="width:100%; padding:15px; border:2px solid #e0e0e0; border-radius:10px; font-size:16px; cursor:pointer;">
+                <option value="320K">320 kbps (High Quality)</option>
+                <option value="256K">256 kbps (Good Quality)</option>
+            </select>
         </div>
 
         <div class="config-section">
@@ -216,16 +228,12 @@
         </div>
 
         <div class="input-group" style="display:flex; gap:10px;">
-            <button class="btn" id="previewBtn" style="flex:1; background:#ffffff; color:#667eea; border:2px solid #667eea;">Preview</button>
-            <button class="btn" id="downloadBtn" style="flex:1;">Download MP3 (320 kbps)</button>
+            <button class="btn" id="downloadBtn" style="flex:1;">Download MP3</button>
+            <button class="btn" id="openFolderBtn" style="flex:0 0 auto; background:#28a745;" onclick="openDownloadFolder()">📁 Open Downloads</button>
         </div>
 
         <div class="status" id="status"></div>
         <div class="progress-container" id="progressContainer"></div>
-
-        <div class="input-group" id="previewSection" style="display:none; margin-top:10px;">
-            <div class="progress-item" id="previewContent"></div>
-        </div>
         
         <div class="setup-instructions">
         
@@ -234,12 +242,14 @@
         const urlInput = document.getElementById('url');
         const serverUrlInput = document.getElementById('serverUrl');
         const downloadBtn = document.getElementById('downloadBtn');
-        const previewBtn = document.getElementById('previewBtn');
+        const bitrateSelect = document.getElementById('bitrate');
         const allowPlaylistCheckbox = document.getElementById('allowPlaylist');
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progressContainer');
         const previewSection = document.getElementById('previewSection');
         const previewContent = document.getElementById('previewContent');
+
+        let previewTimeout;
 
         function showStatus(message, type) {
             statusDiv.textContent = message;
@@ -260,21 +270,68 @@
                     </li>
                 `).join('');
                 previewContent.innerHTML = `
-                    <div class="progress-title">Playlist: ${data.title} (${data.entryCount} items)</div>
+                    <div class="progress-title">📋 Playlist: ${data.title} (${data.entryCount} items)</div>
                     <ul style="margin-left:18px; line-height:1.6;">${listItems || '<li>No items</li>'}</ul>
                 `;
             } else {
                 previewContent.innerHTML = `
-                    <div class="progress-title">Video: ${data.title}</div>
+                    <div class="progress-title">🎵 Video: ${data.title}</div>
                     <div style="color:#666;">${data.uploader || ''} ${data.duration ? `• ${Math.round(data.duration/60)} min` : ''}</div>
                 `;
             }
         }
 
+        // Auto-preview when URL is pasted or typed
+        async function autoPreview() {
+            const url = urlInput.value.trim();
+            const serverUrl = serverUrlInput.value.trim();
+            const allowPlaylist = !!allowPlaylistCheckbox.checked;
+
+            if (!url) {
+                previewSection.style.display = 'none';
+                return;
+            }
+
+            // Basic YouTube URL validation
+            if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+                previewSection.style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${serverUrl}/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, allowPlaylist })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    renderPreview(data);
+                } else {
+                    previewSection.style.display = 'none';
+                }
+            } catch (err) {
+                previewSection.style.display = 'none';
+            }
+        }
+
+        // Trigger auto-preview on input change with debouncing
+        urlInput.addEventListener('input', () => {
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(autoPreview, 800);
+        });
+
+        // Also trigger on paste
+        urlInput.addEventListener('paste', () => {
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(autoPreview, 500);
+        });
+
         async function downloadMP3() {
             const url = urlInput.value.trim();
             const serverUrl = serverUrlInput.value.trim();
             const allowPlaylist = !!allowPlaylistCheckbox.checked;
+            const bitrate = bitrateSelect.value;
 
             if (!url) {
                 showStatus('Please enter a valid YouTube URL', 'error');
@@ -284,7 +341,6 @@
             downloadBtn.disabled = true;
             hideStatus();
             progressContainer.style.display = 'none';
-            previewSection.style.display = 'none';
             progressContainer.innerHTML = '';
 
             try {
@@ -295,7 +351,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url, allowPlaylist })
+                    body: JSON.stringify({ url, allowPlaylist, bitrate })
                 });
 
                 if (!response.ok) {
@@ -331,40 +387,16 @@
             }
         }
 
-        async function previewInfo() {
-            const url = urlInput.value.trim();
-            const serverUrl = serverUrlInput.value.trim();
-            const allowPlaylist = !!allowPlaylistCheckbox.checked;
-
-            if (!url) {
-                showStatus('Please enter a valid YouTube URL', 'error');
-                return;
-            }
-
-            previewBtn.disabled = true;
-            showStatus('Fetching preview...', 'info');
-
-            try {
-                const response = await fetch(`${serverUrl}/preview`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, allowPlaylist })
-                });
-                const data = await response.json();
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'Failed to fetch preview');
-                }
-                hideStatus();
-                renderPreview(data);
-            } catch (err) {
-                showStatus(`Preview error: ${err.message}`, 'error');
-            } finally {
-                previewBtn.disabled = false;
+        // Open downloads folder (works in Electron)
+        function openDownloadFolder() {
+            if (window.electronAPI && window.electronAPI.openDownloadFolder) {
+                window.electronAPI.openDownloadFolder();
+            } else {
+                showStatus('This feature works in the desktop app only', 'info');
             }
         }
 
         downloadBtn.addEventListener('click', downloadMP3);
-        document.getElementById('previewBtn').addEventListener('click', previewInfo);
         urlInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') downloadMP3();
         });

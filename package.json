@@ -1,17 +1,86 @@
 {
   "name": "youtube-mp3-downloader",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Desktop YouTube MP3 Downloader Application",
+  "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "electron": "electron .",
+    "electron-dev": "electron . --enable-logging",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "package": "electron-packager . \"YouTube MP3 Downloader\" --platform=win32 --arch=x64 --out=dist --overwrite --icon=icon.ico"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "youtube",
+    "mp3",
+    "downloader",
+    "electron",
+    "desktop"
+  ],
+  "author": "Mathias Chekanyanza",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.mchekanyanza.youtube-mp3-downloader",
+    "productName": "YouTube MP3 Downloader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "yt-dlp.exe",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "sign": null,
+      "signingHashAlgorithms": []
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "icon.png",
+      "category": "AudioVideo"
+    }
   }
 }

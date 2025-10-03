@@ -21,13 +21,16 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
 
 // Download endpoint
 app.post('/download', async (req, res) => {
-    const { url, allowPlaylist } = req.body;
+    const { url, allowPlaylist, bitrate } = req.body;
 
     if (!url) {
         return res.status(400).json({ success: false, error: 'URL is required' });
     }
 
-    console.log(`Download request received for: ${url}`);
+    // Default to 320K if bitrate not specified
+    const audioBitrate = bitrate || '320K';
+
+    console.log(`Download request received for: ${url} (${audioBitrate})`);
 
     // Check if it's a playlist by URL
     const isPlaylistUrl = url.includes('playlist?list=') || url.includes('&list=');
@@ -37,8 +40,8 @@ app.post('/download', async (req, res) => {
     // If false, force single video even for playlist URLs
     const playlistFlag = allowPlaylist ? '--yes-playlist' : '--no-playlist';
 
-    // yt-dlp command for 320kbps MP3
-    const command = `yt-dlp ${playlistFlag} -x --audio-format mp3 --audio-quality 320K -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
+    // yt-dlp command with configurable bitrate
+    const command = `yt-dlp ${playlistFlag} -x --audio-format mp3 --audio-quality ${audioBitrate} -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
 
     console.log(`Executing: ${command}`);
 
