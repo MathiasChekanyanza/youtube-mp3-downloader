@@ -180,6 +180,7 @@
 
         .config-section {
             margin-top: 20px;
+            margin-bottom: 20px;
             padding: 15px;
             background: #f5f5f5;
             border-radius: 10px;
@@ -193,12 +194,96 @@
             padding: 10px;
             font-size: 14px;
         }
+
+        .history-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+
+        .history-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item.success {
+            border-left-color: #4caf50;
+        }
+
+        .history-item.error {
+            border-left-color: #f44336;
+        }
+
+        .history-item-info {
+            flex: 1;
+        }
+
+        .history-item-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .history-item-status {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .history-item-time {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .clear-history-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .clear-history-btn:hover {
+            background: #d32f2f;
+        }
+
+        .progress-status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .progress-item.downloading .progress-fill {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎵 YouTube MP3 Downloader</h1>
-        <p class="subtitle">Download high-quality 320kbps MP3 files from YouTube videos and playlists</p>
+        <h1>🎵 YouTube Downloader</h1>
+        <p class="subtitle">Download high-quality MP3 audio or MP4 video from YouTube videos and playlists</p>
 
         <div class="input-group">
             <label for="url">YouTube URL (Video or Playlist)</label>
@@ -215,10 +300,32 @@
         </div>
 
         <div class="input-group">
+            <label for="format">Download Format</label>
+            <select id="format" style="width:100%; padding:15px; border:2px solid #e0e0e0; border-radius:10px; font-size:16px; cursor:pointer;">
+                <option value="mp3">🎵 MP3 Audio</option>
+                <option value="mp4">🎬 MP4 Video</option>
+            </select>
+        </div>
+
+        <div class="input-group" id="bitrateSection">
             <label for="bitrate">Audio Quality</label>
             <select id="bitrate" style="width:100%; padding:15px; border:2px solid #e0e0e0; border-radius:10px; font-size:16px; cursor:pointer;">
                 <option value="320K">320 kbps (High Quality)</option>
                 <option value="256K">256 kbps (Good Quality)</option>
+            </select>
+        </div>
+
+        <div class="input-group" id="videoQualitySection" style="display:none;">
+            <label for="videoQuality">Video Quality</label>
+            <select id="videoQuality" style="width:100%; padding:15px; border:2px solid #e0e0e0; border-radius:10px; font-size:16px; cursor:pointer;">
+                <option value="best">🌟 Best Available (Highest Quality)</option>
+                <option value="2160">4K (2160p)</option>
+                <option value="1440">2K (1440p)</option>
+                <option value="1080" selected>Full HD (1080p)</option>
+                <option value="720">HD (720p)</option>
+                <option value="480">SD (480p)</option>
+                <option value="360">360p</option>
+                <option value="240">240p</option>
             </select>
         </div>
 
@@ -227,13 +334,24 @@
             <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
         </div>
 
-        <div class="input-group" style="display:flex; gap:10px;">
-            <button class="btn" id="downloadBtn" style="flex:1;">Download MP3</button>
-            <button class="btn" id="openFolderBtn" style="flex:0 0 auto; background:#28a745;" onclick="openDownloadFolder()">📁 Open Downloads</button>
+        <div class="input-group">
+            <button class="btn" id="downloadBtn">Download</button>
+        </div>
+
+        <div class="input-group">
+            <button class="btn" id="openFolderBtn" style="background:#28a745;" onclick="openDownloadFolder()">📁 Open Downloads</button>
         </div>
 
         <div class="status" id="status"></div>
         <div class="progress-container" id="progressContainer"></div>
+        
+        <div class="history-section" id="historySection" style="display:none;">
+            <h3>
+                <span>📜 Download History</span>
+                <button class="clear-history-btn" onclick="clearHistory()">Clear History</button>
+            </h3>
+            <div id="historyList"></div>
+        </div>
         
         <div class="setup-instructions">
         
@@ -242,14 +360,76 @@
         const urlInput = document.getElementById('url');
         const serverUrlInput = document.getElementById('serverUrl');
         const downloadBtn = document.getElementById('downloadBtn');
+        const formatSelect = document.getElementById('format');
         const bitrateSelect = document.getElementById('bitrate');
+        const bitrateSection = document.getElementById('bitrateSection');
+        const videoQualitySelect = document.getElementById('videoQuality');
+        const videoQualitySection = document.getElementById('videoQualitySection');
         const allowPlaylistCheckbox = document.getElementById('allowPlaylist');
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progressContainer');
         const previewSection = document.getElementById('previewSection');
         const previewContent = document.getElementById('previewContent');
+        const historySection = document.getElementById('historySection');
+        const historyList = document.getElementById('historyList');
 
         let previewTimeout;
+        let downloadHistory = JSON.parse(localStorage.getItem('downloadHistory') || '[]');
+
+        // Load and display history on page load
+        function loadHistory() {
+            if (downloadHistory.length > 0) {
+                historySection.style.display = 'block';
+                historyList.innerHTML = downloadHistory.map(item => `
+                    <div class="history-item ${item.status}">
+                        <div class="history-item-info">
+                            <div class="history-item-title">${item.title}</div>
+                            <div class="history-item-status">
+                                ${item.status === 'success' ? '✓' : '✗'} 
+                                ${item.format.toUpperCase()} 
+                                ${item.fileCount ? `• ${item.fileCount} file(s)` : ''}
+                            </div>
+                            <div class="history-item-time">${item.timestamp}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                historySection.style.display = 'none';
+            }
+        }
+
+        function addToHistory(title, status, format, fileCount = 1) {
+            const timestamp = new Date().toLocaleString();
+            downloadHistory.unshift({ title, status, format, fileCount, timestamp });
+            
+            // Keep only last 20 items
+            if (downloadHistory.length > 20) {
+                downloadHistory = downloadHistory.slice(0, 20);
+            }
+            
+            localStorage.setItem('downloadHistory', JSON.stringify(downloadHistory));
+            loadHistory();
+        }
+
+        function clearHistory() {
+            if (confirm('Clear all download history?')) {
+                downloadHistory = [];
+                localStorage.removeItem('downloadHistory');
+                loadHistory();
+            }
+        }
+
+        // Show/hide quality sections based on format
+        formatSelect.addEventListener('change', () => {
+            const format = formatSelect.value;
+            bitrateSection.style.display = format === 'mp3' ? 'block' : 'none';
+            videoQualitySection.style.display = format === 'mp4' ? 'block' : 'none';
+            // Update button text
+            downloadBtn.textContent = format === 'mp3' ? 'Download MP3' : 'Download MP4';
+        });
+
+        // Load history on page load
+        loadHistory();
 
         function showStatus(message, type) {
             statusDiv.textContent = message;
@@ -332,6 +512,8 @@
             const serverUrl = serverUrlInput.value.trim();
             const allowPlaylist = !!allowPlaylistCheckbox.checked;
             const bitrate = bitrateSelect.value;
+            const format = formatSelect.value;
+            const videoQuality = videoQualitySelect.value;
 
             if (!url) {
                 showStatus('Please enter a valid YouTube URL', 'error');
@@ -340,32 +522,73 @@
 
             downloadBtn.disabled = true;
             hideStatus();
-            progressContainer.style.display = 'none';
+            progressContainer.style.display = 'block';
             progressContainer.innerHTML = '';
+
+            // Create progress item immediately
+            const progressItem = document.createElement('div');
+            progressItem.className = 'progress-item downloading';
+            progressItem.innerHTML = `
+                <div class="progress-title">⏳ Starting download...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-status">Initializing...</div>
+            `;
+            progressContainer.appendChild(progressItem);
+
+            const progressFill = progressItem.querySelector('.progress-fill');
+            const progressTitle = progressItem.querySelector('.progress-title');
+            const progressStatus = progressItem.querySelector('.progress-status');
+
+            // Clear URL input after starting download
+            urlInput.value = '';
+            previewSection.style.display = 'none';
+
+            let videoTitle = 'Downloading...';
 
             try {
                 showStatus('Connecting to server...', 'info');
+                progressFill.style.width = '10%';
+                progressStatus.textContent = 'Connecting to server...';
 
                 const response = await fetch(`${serverUrl}/download`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url, allowPlaylist, bitrate })
+                    body: JSON.stringify({ url, allowPlaylist, bitrate, format, videoQuality })
                 });
+
+                progressFill.style.width = '30%';
+                progressStatus.textContent = 'Processing...';
 
                 if (!response.ok) {
                     throw new Error(`Server error: ${response.status}`);
                 }
 
+                progressFill.style.width = '60%';
+                progressStatus.textContent = 'Downloading...';
+
                 const data = await response.json();
 
                 if (data.success) {
+                    // Get the actual title from server response
+                    videoTitle = data.title || data.files?.[0]?.replace(/\.(mp3|mp4)$/, '') || 'Download';
+                    
+                    progressFill.style.width = '100%';
+                    progressItem.classList.remove('downloading');
+                    progressTitle.textContent = `✓ ${videoTitle}`;
+                    progressStatus.textContent = `Completed - ${data.files?.length || 1} file(s)`;
+                    
                     showStatus(data.message || 'Download completed successfully!', 'success');
                     
-                    if (data.files && data.files.length > 0) {
-                        progressContainer.style.display = 'block';
-                        data.files.forEach(file => {
+                    // Add to history
+                    addToHistory(videoTitle, 'success', format, data.files?.length || 1);
+
+                    // Show all downloaded files
+                    if (data.files && data.files.length > 1) {
+                        data.files.slice(1).forEach(file => {
                             const item = document.createElement('div');
                             item.className = 'progress-item';
                             item.innerHTML = `
@@ -378,15 +601,28 @@
                         });
                     }
                 } else {
+                    progressItem.classList.remove('downloading');
+                    progressTitle.textContent = `✗ Failed: ${videoTitle}`;
+                    progressStatus.textContent = data.error || 'Download failed';
+                    progressFill.style.width = '100%';
+                    progressFill.style.background = '#f44336';
+                    
                     showStatus(data.error || 'Download failed', 'error');
+                    addToHistory(videoTitle, 'error', format);
                 }
             } catch (error) {
+                progressItem.classList.remove('downloading');
+                progressTitle.textContent = `✗ Error: ${videoTitle}`;
+                progressStatus.textContent = error.message;
+                progressFill.style.width = '100%';
+                progressFill.style.background = '#f44336';
+                
                 showStatus(`Error: ${error.message}. Make sure the server is running!`, 'error');
+                addToHistory(videoTitle, 'error', format);
             } finally {
                 downloadBtn.disabled = false;
             }
         }
-
         // Open downloads folder (works in Electron)
         function openDownloadFolder() {
             if (window.electronAPI && window.electronAPI.openDownloadFolder) {

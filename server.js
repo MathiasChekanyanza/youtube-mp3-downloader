@@ -21,27 +21,43 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
 
 // Download endpoint
 app.post('/download', async (req, res) => {
-    const { url, allowPlaylist, bitrate } = req.body;
+    const { url, allowPlaylist, bitrate, format, videoQuality } = req.body;
 
     if (!url) {
         return res.status(400).json({ success: false, error: 'URL is required' });
     }
 
-    // Default to 320K if bitrate not specified
+    // Default to MP3 audio if format not specified
+    const downloadFormat = format || 'mp3';
     const audioBitrate = bitrate || '320K';
+    const quality = videoQuality || 'best';
 
-    console.log(`Download request received for: ${url} (${audioBitrate})`);
+    console.log(`Download request received for: ${url} (${downloadFormat === 'mp3' ? audioBitrate : quality + 'p video'})`);
 
     // Check if it's a playlist by URL
     const isPlaylistUrl = url.includes('playlist?list=') || url.includes('&list=');
 
     // Respect client preference for playlist handling
-    // If allowPlaylist is true, download full playlist when URL is a playlist
-    // If false, force single video even for playlist URLs
     const playlistFlag = allowPlaylist ? '--yes-playlist' : '--no-playlist';
 
-    // yt-dlp command with configurable bitrate
-    const command = `yt-dlp ${playlistFlag} -x --audio-format mp3 --audio-quality ${audioBitrate} -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
+    // Build command based on format with progress indicator
+    let command;
+    if (downloadFormat === 'mp3') {
+        // Audio download (MP3) with progress
+        command = `yt-dlp ${playlistFlag} --newline --progress -x --audio-format mp3 --audio-quality ${audioBitrate} -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
+    } else {
+        // Video download (MP4) with quality selection and progress
+        let formatString;
+        if (quality === 'best') {
+            // Best available quality
+            formatString = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+        } else {
+            // Specific resolution (e.g., 1080, 720, 480, etc.)
+            // Try to get the exact resolution, or closest available
+            formatString = `bestvideo[height<=${quality}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`;
+        }
+        command = `yt-dlp ${playlistFlag} --newline --progress -f "${formatString}" --merge-output-format mp4 -o "${DOWNLOAD_DIR}/%(title)s.%(ext)s" "${url}"`;
+    }
 
     console.log(`Executing: ${command}`);
 
@@ -65,9 +81,10 @@ app.post('/download', async (req, res) => {
         console.log('Download completed successfully');
         console.log(stdout);
 
-        // Get list of downloaded files
+        // Get list of downloaded files based on format
+        const fileExtension = downloadFormat === 'mp3' ? '.mp3' : '.mp4';
         const files = fs.readdirSync(DOWNLOAD_DIR)
-            .filter(file => file.endsWith('.mp3'))
+            .filter(file => file.endsWith(fileExtension))
             .sort((a, b) => {
                 const statA = fs.statSync(path.join(DOWNLOAD_DIR, a));
                 const statB = fs.statSync(path.join(DOWNLOAD_DIR, b));
@@ -75,11 +92,18 @@ app.post('/download', async (req, res) => {
             })
             .slice(0, isPlaylistUrl && allowPlaylist ? 50 : 1);
 
+        // Extract title from first file (remove extension)
+        const title = files.length > 0 
+            ? files[0].replace(/\.(mp3|mp4)$/, '')
+            : 'Download';
+
+        const formatName = downloadFormat === 'mp3' ? 'MP3' : 'MP4';
         res.json({ 
             success: true, 
             message: (isPlaylistUrl && allowPlaylist)
-                ? `Successfully downloaded ${files.length} MP3 files to ${DOWNLOAD_DIR}`
-                : `Successfully downloaded MP3 to ${DOWNLOAD_DIR}`,
+                ? `Successfully downloaded ${files.length} ${formatName} files to ${DOWNLOAD_DIR}`
+                : `Successfully downloaded ${formatName} to ${DOWNLOAD_DIR}`,
+            title: title,
             files: files,
             downloadDir: DOWNLOAD_DIR
         });
@@ -150,6 +174,11 @@ app.post('/preview', async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'Server is running', downloadDir: DOWNLOAD_DIR });
+});
+
+// Serve the HTML interface
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Start server
